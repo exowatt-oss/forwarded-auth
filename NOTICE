@@ -1,0 +1,9 @@
+forwarded-auth
+Copyright 2026 Exowatt, Inc.
+
+This product includes software developed at Exowatt
+(https://exowatt.com), generalised from an internal library for public
+release. No third-party notices apply beyond what each dependency's own
+license already requires (PyJWT, cryptography, and the optional
+FastAPI/Streamlit/MCP integrations are used as ordinary dependencies,
+not vendored).
