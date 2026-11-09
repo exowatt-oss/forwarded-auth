@@ -58,6 +58,11 @@ from forwarded_auth.mcp import build_transport_security
 mcp = FastMCP("my-app", transport_security=build_transport_security())
 ```
 
+In `forwarded`/`oidc` mode, set `FORWARDED_AUTH_TRUSTED_HOSTNAMES` to the
+app's public hostname(s); with it empty, every MCP request is rejected.
+Loopback hosts are allowed only in `none` mode or with
+`FORWARDED_AUTH_ALLOW_LOOPBACK_HOSTS=true` (e.g. a test suite).
+
 ### Anything else
 
 ```python
@@ -120,7 +125,8 @@ relative path.
 | `FORWARDED_AUTH_PROXY_EMAIL_HEADER` | `X-Forwarded-User-Email` | |
 | `FORWARDED_AUTH_PROXY_USER_HEADER` | `X-Forwarded-User-Id` | |
 | `FORWARDED_AUTH_PROXY_NAME_HEADER` | `X-Forwarded-User-Name` | |
-| `FORWARDED_AUTH_TRUSTED_HOSTNAMES` | _(empty = loopback only)_ | Comma-separated hostnames for `forwarded_auth.mcp`'s DNS-rebinding allowlist. |
+| `FORWARDED_AUTH_TRUSTED_HOSTNAMES` | _(empty)_ | Comma-separated hostnames for `forwarded_auth.mcp`'s DNS-rebinding allowlist. Required for an MCP endpoint in `forwarded`/`oidc` mode: with it empty, every MCP request is rejected. |
+| `FORWARDED_AUTH_ALLOW_LOOPBACK_HOSTS` | _(unset = only in `none` mode)_ | Add `localhost:*`, `127.0.0.1:*`, `[::1]:*`, `testserver` and the matching `http://` origins to the MCP allowlist. Unset: added in `none` mode only, never in `forwarded`/`oidc`. Set `true` for a test suite or a loopback-only deployment; `false` to drop them even in `none` mode. |
 | `FORWARDED_AUTH_DEV_USER_EMAIL` | `dev@localhost` | `none` mode's fixed user. |
 | `FORWARDED_AUTH_DEV_USER_NAME` | `Local Dev User` | |
 | `FORWARDED_AUTH_DEV_USER_ID` | `dev@localhost` | |

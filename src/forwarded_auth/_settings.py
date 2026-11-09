@@ -73,6 +73,7 @@ ENV_PROXY_USER_HEADER = "FORWARDED_AUTH_PROXY_USER_HEADER"
 ENV_PROXY_NAME_HEADER = "FORWARDED_AUTH_PROXY_NAME_HEADER"
 
 ENV_TRUSTED_HOSTNAMES = "FORWARDED_AUTH_TRUSTED_HOSTNAMES"
+ENV_ALLOW_LOOPBACK_HOSTS = "FORWARDED_AUTH_ALLOW_LOOPBACK_HOSTS"
 
 ENV_DEV_USER_EMAIL = "FORWARDED_AUTH_DEV_USER_EMAIL"
 ENV_DEV_USER_NAME = "FORWARDED_AUTH_DEV_USER_NAME"
@@ -113,6 +114,13 @@ class ConfigurationError(Exception):
 
 def _truthy(raw: str | None) -> bool:
     return (raw or "").strip().lower() in {"true", "1", "yes"}
+
+
+def _tristate(raw: str | None) -> bool | None:
+    """Unset/blank -> None (use the mode-derived default); otherwise a bool."""
+    if raw is None or not raw.strip():
+        return None
+    return _truthy(raw)
 
 
 def _split_csv(raw: str | None) -> tuple[str, ...]:
@@ -229,8 +237,19 @@ class Settings:
     proxy_name_header: str = "X-Forwarded-User-Name"
 
     # Hostnames this app is reachable at, for `forwarded_auth.mcp`'s
-    # DNS-rebinding allowlist. Comma-separated. Empty = loopback-only.
+    # DNS-rebinding allowlist. Comma-separated. Empty = no public host
+    # (only loopback, and only when loopback is allowed; see below).
     trusted_hostnames: tuple[str, ...] = ()
+
+    # Whether `forwarded_auth.mcp` adds the loopback/testserver entries
+    # (`localhost:*`, `127.0.0.1:*`, `[::1]:*`, `testserver` and the
+    # matching `http://` origins) to the DNS-rebinding allowlist.
+    # None (the default) = only in mode=none (local dev). In
+    # forwarded/oidc mode they are added only when this is explicitly
+    # True (e.g. a test suite or a loopback-only deployment), so a
+    # production MCP endpoint never accepts `Origin: http://localhost:*`
+    # by default.
+    allow_loopback_hosts: bool | None = None
 
     # "none" mode's fixed dev user.
     dev_user_email: str = "dev@localhost"
@@ -390,6 +409,7 @@ class Settings:
             proxy_user_header=os.environ.get(ENV_PROXY_USER_HEADER, cls.proxy_user_header),
             proxy_name_header=os.environ.get(ENV_PROXY_NAME_HEADER, cls.proxy_name_header),
             trusted_hostnames=_split_csv(os.environ.get(ENV_TRUSTED_HOSTNAMES)),
+            allow_loopback_hosts=_tristate(os.environ.get(ENV_ALLOW_LOOPBACK_HOSTS)),
             dev_user_email=os.environ.get(ENV_DEV_USER_EMAIL, cls.dev_user_email),
             dev_user_name=os.environ.get(ENV_DEV_USER_NAME, cls.dev_user_name),
             dev_user_id=os.environ.get(ENV_DEV_USER_ID, cls.dev_user_id),

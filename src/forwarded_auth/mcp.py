@@ -3,15 +3,17 @@
 Background: FastMCP ships a DNS-rebinding guard
 (``TransportSecuritySettings.enable_dns_rebinding_protection``) that
 checks the inbound ``Host:`` header against an ``allowed_hosts`` list.
-The default list is loopback-only, so an MCP server hosted behind any
+FastMCP's own default list is loopback-only, so an MCP server hosted behind any
 reverse proxy that preserves the inbound Host header returns a
 **421 Misdirected Request** on every public request unless the app's
 own public hostname(s) are in that list.
 
 ``build_transport_security()`` reads the configured trusted hostnames
-(``FORWARDED_AUTH_TRUSTED_HOSTNAMES``, comma-separated), bakes in
-loopback/testserver defaults, and returns a ready-to-use
-``TransportSecuritySettings``:
+(``FORWARDED_AUTH_TRUSTED_HOSTNAMES``, comma-separated) and returns a
+ready-to-use ``TransportSecuritySettings``. Loopback/testserver entries
+are added only in ``mode=none`` (local dev) or when
+``FORWARDED_AUTH_ALLOW_LOOPBACK_HOSTS`` is explicitly true; in
+forwarded/oidc mode they are never added by default:
 
     from mcp.server.fastmcp import FastMCP
     from forwarded_auth.mcp import build_transport_security
@@ -27,7 +29,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from forwarded_auth._settings import Settings, get_settings
+from forwarded_auth._settings import MODE_NONE, Settings, _warn_once, get_settings
 
 if TYPE_CHECKING:  # pragma: no cover — typing-only import
     from mcp.server.transport_security import TransportSecuritySettings
@@ -44,6 +46,14 @@ _DEV_ALLOWED_ORIGINS = (
     "http://localhost:*",
     "http://[::1]:*",
 )
+
+
+def loopback_allowed(settings: Settings) -> bool:
+    """True if the loopback/testserver allowlist entries apply: an explicit
+    ``allow_loopback_hosts`` wins; otherwise only ``mode=none``."""
+    if settings.allow_loopback_hosts is not None:
+        return settings.allow_loopback_hosts
+    return settings.mode == MODE_NONE
 
 
 def build_transport_security(
@@ -89,8 +99,19 @@ def build_transport_security(
 
     settings = settings or get_settings()
 
-    allowed_hosts: list[str] = list(_DEV_ALLOWED_HOSTS)
-    allowed_origins: list[str] = list(_DEV_ALLOWED_ORIGINS)
+    allowed_hosts: list[str] = []
+    allowed_origins: list[str] = []
+    if loopback_allowed(settings):
+        allowed_hosts.extend(_DEV_ALLOWED_HOSTS)
+        allowed_origins.extend(_DEV_ALLOWED_ORIGINS)
+        if settings.mode != MODE_NONE:
+            _warn_once(
+                "mcp_loopback_opt_in",
+                "forwarded_auth.mcp: loopback/testserver hosts and http://localhost origins "
+                "are allowed in mode=%s (FORWARDED_AUTH_ALLOW_LOOPBACK_HOSTS=true). Not for "
+                "a production MCP endpoint.",
+                settings.mode,
+            )
 
     for host in settings.trusted_hostnames:
         allowed_hosts.append(host)
@@ -102,6 +123,14 @@ def build_transport_security(
     if extra_allowed_origins:
         allowed_origins.extend(extra_allowed_origins)
 
+    if not allowed_hosts:
+        _warn_once(
+            "mcp_no_allowed_hosts",
+            "forwarded_auth.mcp: no allowed hosts (FORWARDED_AUTH_TRUSTED_HOSTNAMES is empty "
+            "and loopback hosts are not enabled), so every MCP request will be "
+            "rejected. Set FORWARDED_AUTH_TRUSTED_HOSTNAMES to this app's public hostname(s).",
+        )
+
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
         allowed_hosts=allowed_hosts,
@@ -109,4 +138,4 @@ def build_transport_security(
     )
 
 
-__all__ = ["build_transport_security"]
+__all__ = ["build_transport_security", "loopback_allowed"]

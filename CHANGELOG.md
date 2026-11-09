@@ -24,7 +24,11 @@ independent pre-release security review before the first public tag.
   second proxy hop that authenticates out of band — see
   `docs/oauth2-proxy-caddy.md` for the required header-stripping config
   at that first proxy hop.
-- FastAPI, Streamlit, and MCP transport-security integrations.
+- FastAPI, Streamlit, and MCP transport-security integrations. The MCP
+  DNS-rebinding allowlist adds loopback/testserver hosts and `http://`
+  loopback origins only in `none` mode or when
+  `FORWARDED_AUTH_ALLOW_LOOPBACK_HOSTS` is explicitly true, never by
+  default in `forwarded`/`oidc` mode (pre-release review finding).
 - Fail-closed configuration throughout: a missing issuer/audience/
   email-domain allowlist raises `ConfigurationError` rather than
   silently skipping verification or admitting every verified email.
